@@ -1,0 +1,232 @@
+require "rexml/document"
+require "cgi"
+require "uri"
+require "net/http"
+require "net/https"
+require "open-uri"
+require "nkf"
+require "time"
+
+Net::HTTP.version_1_2
+
+module GCal4Ruby
+  
+  CALENDAR_XML = "<entry xmlns='http://www.w3.org/2005/Atom' 
+       xmlns:gd='http://schemas.google.com/g/2005' 
+       xmlns:gCal='http://schemas.google.com/gCal/2005'>
+  <title type='text'></title>
+  <summary type='text'></summary>
+  <gCal:timezone value=''></gCal:timezone>
+  <gCal:hidden value=''></gCal:hidden>
+  <gCal:color value=''></gCal:color>
+  <gd:where rel='' label='' valueString=''></gd:where>
+  </entry>"
+  
+  ACL_XML = "<entry xmlns='http://www.w3.org/2005/Atom' xmlns:gAcl='http://schemas.google.com/acl/2007'>
+                      <category scheme='http://schemas.google.com/g/2005#kind' term='http://schemas.google.com/acl/2007#accessRule'/>
+                       <gAcl:scope type='default'></gAcl:scope>
+                       <gAcl:role value=''></gAcl:role>
+                    </entry>"
+                    
+  EVENT_XML = "<entry xmlns='http://www.w3.org/2005/Atom' xmlns:gd='http://schemas.google.com/g/2005'>
+  <category scheme='http://schemas.google.com/g/2005#kind' term='http://schemas.google.com/g/2005#event'></category>
+  <title type='text'></title>
+  <content type='text'></content>
+  <gd:transparency value=''></gd:transparency>
+  <gd:eventStatus value=''></gd:eventStatus>
+  <gd:where valueString=''></gd:where>
+  <gd:when startTime='' endTime=''></gd:when>
+</entry>
+  "
+  
+  class AuthenticationFailed < StandardError; end #:nodoc: all
+
+  class NotAuthenticated < StandardError; end
+    
+  class InvalidService < StandardError; end
+    
+  class HTTPPostFailed < StandardError; end
+    
+  class HTTPPutFailed < StandardError; end
+    
+  class HTTPGetFailed < StandardError; end
+    
+  class HTTPDeleteFailed < StandardError; end
+    
+  class CalendarSaveFailed < StandardError; end
+  
+  class EventSaveFailed < StandardError; end
+    
+  class RecurrenceValueError < StandardError; end
+
+  class ProxyInfo
+    attr_accessor :address, :port, :username, :password
+    @address = nil
+    @port = nil
+    @username = nil
+    @password = nil
+
+    def initialize(address=nil, port=nil, username=nil, password=nil)
+      @address = address
+      @port = port
+      @username = username
+      @password = password
+    end
+  end
+
+  class Base
+    AUTH_URL = "https://www.google.com/accounts/ClientLogin"
+    CALENDAR_LIST_FEED = "http://www.google.com/calendar/feeds/default/allcalendars/full"
+    @proxy_info = nil
+    @auth_token = nil
+    @debug = false
+
+    attr_reader :auth_token
+    attr_accessor :proxy_info, :debug
+
+    def send_post(url, content, header=nil)
+      header = auth_header(header)
+      ret = nil
+      location = URI.parse(url)
+      https = get_http_object(location)
+      puts "url = "+url if @debug
+      if location.scheme == 'https'
+        puts "SSL True" if @debug
+      	https.use_ssl = true
+      	https.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+      puts "Starting post\nHeader: #{header}\nContent: #{content}" if @debug
+      https.start do |http|
+        ret = http.post(location.path, content, header)
+      end
+      while ret.is_a?(Net::HTTPRedirection)
+        puts "Redirect recieved, resending post" if @debug
+        https.start do |http|
+          ret = http.post(ret['location'], content, header)
+        end
+      end
+      if ret.is_a?(Net::HTTPSuccess)
+        puts "20x response recieved\nResponse: \n"+ret.read_body if @debug
+        return ret
+      else
+        puts "invalid response received: "+ret.code if @debug
+        raise HTTPPostFailed, ret.body
+      end
+    end
+
+    def send_put(url, content, header=nil)
+      header = auth_header(header)
+      ret = nil
+      location = URI.parse(url)
+      https = get_http_object(location)
+      puts "url = "+url if @debug
+      if location.scheme == 'https'
+        puts "SSL True" if @debug
+        https.use_ssl = true
+        https.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+      puts "Starting post\nHeader: #{header}\nContent: #{content}" if @debug
+      https.start do |http|
+        ret = http.put(location.path, content, header)
+      end
+      while ret.is_a?(Net::HTTPRedirection)
+        puts "Redirect recieved, resending post" if @debug
+        https.start do |http|
+          ret = http.put(ret['location'], content, header)
+        end
+      end
+      if ret.is_a?(Net::HTTPSuccess)
+        puts "20x response recieved\nResponse: \n"+ret.read_body if @debug
+        return ret
+      else
+        puts "invalid response received: "+ret.code if @debug
+        raise HTTPPutFailed, ret.body
+      end
+    end
+
+    def send_get(url, h = nil)
+      header = auth_header(header)
+      ret = nil
+      location = URI.parse(url)
+      http = get_http_object(location)
+      puts "url = "+url if @debug
+      if location.scheme == 'https'
+        puts "SSL True" if @debug
+        https.use_ssl = true
+        https.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+      puts "Starting post\nHeader: #{header}\n" if @debug
+      http.start do |http|
+        ret = http.get(location.path, header)
+      end
+      while ret.is_a?(Net::HTTPRedirection)
+        puts "Redirect recieved, resending post" if @debug
+    	  http.start do |http|
+    	    ret = http.get(ret['location'], header)
+    	  end
+      end
+      if ret.is_a?(Net::HTTPSuccess)
+        puts "20x response recieved\nResponse: \n"+ret.read_body if @debug
+        return ret
+      else
+        puts "Redirect recieved, resending post" if @debug
+        raise HTTPGetFailed, ret.body
+      end
+    end
+
+    def send_delete(url, header = nil)
+      header = auth_header(header)
+      ret = nil
+      location = URI.parse(url)
+      https = get_http_object(location)
+      puts "url = "+url if @debug
+      if location.scheme == 'https'
+        puts "SSL True" if @debug
+        https.use_ssl = true
+        https.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
+      puts "Starting post\nHeader: #{header}\n" if @debug
+      https.start do |http|
+        ret = http.delete(location.path, header)
+      end
+      while ret.is_a?(Net::HTTPRedirection)
+        puts "Redirect recieved, resending post" if @debug
+        https.start do |http|
+          ret = http.delete(ret['location'], header)
+        end
+      end
+      if ret.is_a?(Net::HTTPSuccess)
+        puts "20x response recieved\nResponse: \n"+ret.read_body if @debug
+        return true
+      else
+        puts "invalid response received: "+ret.code if @debug
+        raise HTTPDeleteFailed, ret.body
+      end
+    end
+
+    def send_raw(url, header, content)
+
+    end
+
+    private
+
+    def get_http_object(location)
+      if @proxy_info and @proxy_info.address
+	     return Net::HTTP.new(location.host, location.port, @proxy_info.address, @proxy_info.port, @proxy_info.username, @proxy_info.password)
+      else
+	     return Net::HTTP.new(location.host, location.port)
+      end      
+    end
+
+    def auth_header(header)
+      if @auth_token
+      	if header
+      	  header.merge!({'Authorization' => "GoogleLogin auth=#{@auth_token}", "GData-Version" => "2.1"})
+      	else 
+      	  header = {'Authorization' => "GoogleLogin auth=#{@auth_token}", "GData-Version" => "2.1"}
+      	end
+      end
+      return header
+    end
+  end
+end
