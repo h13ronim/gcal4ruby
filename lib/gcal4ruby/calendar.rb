@@ -1,24 +1,69 @@
 require 'gcal4ruby/event'
 
 module GCal4Ruby
+#The Calendar Class is the representation of a Google Calendar.  Each user account 
+#can have multiple calendars.  You must have an authenticated Service object before 
+#using the Calendar object.
+#=Usage
+#All usages assume a successfully authenticated Service.
+#1. Create a new Calendar
+#    cal = Calendar.new(service)
+#
+#2. Find an existing Calendar
+#    cal = Calendar.find(service, "New Calendar", :first)
+#
+#3. Find all calendars containing the search term
+#    cal = Calendar.find(service, "Soccer Team")
+#
+#4. Find a calendar by ID
+#    cal = Calendar.find(service, id, :first)
+#
+#After a calendar object has been created or loaded, you can change any of the 
+#attributes like you would any other object.  Be sure to save the calendar to write changes
+#to the Google Calendar service.
 
 class Calendar
   CALENDAR_FEED = "http://www.google.com/calendar/feeds/default/owncalendars/full"
-  attr_accessor :title, :summary, :service, :id, :hidden, :timezone, :color, :where, :selected, :xml
-  attr_reader :event_feed, :edit_feed
-  @exists = false
-  @public = false
-  @event_feed = ''
-  @edit_feed = ''
   
+  #The calendar title
+  attr_accessor :title
+  
+  #A short description of the calendar
+  attr_accessor :summary
+  
+  #The parent Service object passed on initialization
+  attr_reader :service
+  
+  #The unique calendar id
+  attr_reader :id
+  
+  #Boolean value indicating the calendar visibility
+  attr_accessor :hidden
+  
+  #The calendar timezone[http://code.google.com/apis/calendar/docs/2.0/reference.html#gCaltimezone]
+  attr_accessor :timezone
+  
+  #The calendar color.  Must be one of these[http://code.google.com/apis/calendar/docs/2.0/reference.html#gCalcolor] values.
+  attr_accessor :color
+  
+  #The calendar geo location, if any
+  attr_accessor :where
+  
+  #A boolean value indicating whether the calendar appears by default when viewed online
+  attr_accessor :selected
+  
+  #Returns true if the calendar exists on the Google Calendar system (i.e. was 
+  #loaded or has been saved).  Otherwise returns false.
   def exists?
     return @exists
   end
   
+  #Returns true if the calendar is publically accessable, otherwise returns false.
   def public?
     return @public
   end
   
+  #Returns an array of Event objects corresponding to each event in the calendar.
   def events
     events = []
     ret = @service.send_get(@event_feed)
@@ -34,6 +79,9 @@ class Calendar
     return events
   end
   
+  #Set the calendar to public (p = true) or private (p = false).  Publically viewable
+  #calendars can be accessed by anyone without having to log in to google calendar.  See
+  #Calendar#to_iframe for options to display a public calendar in a webpage.
   def public=(p)
     if p
       permissions = 'http://schemas.google.com/gCal/2005#read' 
@@ -59,6 +107,8 @@ class Calendar
     #end
   end
 
+  #Accepts a Service object.  Returns the new Calendar if successful, otherwise raises the InvalidService
+  #error.
   def initialize(service)
     super()
     if !service.is_a?(Service)
@@ -75,8 +125,11 @@ class Calendar
     @timezone = "America/Los_Angeles"
     @color = "#2952A3"
     @where = ""
+    return true
   end
   
+  #Deletes a calendar.  If successful, returns true, otherwise false.  If successful, the
+  #calendar object is cleared.
   def delete
     if @exists    
       if @service.send_delete(CALENDAR_FEED+"/"+@id)
@@ -98,6 +151,8 @@ class Calendar
     end
   end
   
+  #If the calendar does not exist, creates it, otherwise updates the calendar info.  Returns
+  #true if the save is successful, otherwise false.
   def save
     if @exists
       ret = service.send_put(@edit_feed, to_xml(), {'Content-Type' => 'application/atom+xml'})
@@ -114,8 +169,12 @@ class Calendar
     return true
   end
   
-  def self.find(service, term, scope = :all)
-    t = term.downcase
+  #Class method for querying the google service for specific calendars.  The service parameter
+  #should be an appropriately authenticated Service. The term parameter can be any string.  The
+  #scope parameter may be either :all to return an array of matches, or :first to return 
+  #the first match as a Calendar object.
+  def self.find(service, query_term, scope = :all)
+    t = query_term.downcase
     cals = service.calendars
     ret = []
     cals.each do |cal|
@@ -133,7 +192,12 @@ class Calendar
     ret
   end
   
+  #Reloads the calendar objects information from the stored server version.  Returns true
+  #if successful, otherwise returns false.  Any information not saved will be overwritten.
   def reload
+    if not @exists
+      return false
+    end  
     t = Calendar.find(service, @id, :first)
     if t
       load(t.xml)
@@ -142,6 +206,7 @@ class Calendar
     end
   end
   
+  #Returns the xml representation of the Calenar.
   def to_xml
     xml = REXML::Document.new(@xml)
     xml.root.elements.each(){}.map do |ele|
@@ -163,10 +228,11 @@ class Calendar
     xml.to_s
   end
 
-  def load(text)
+  #Loads the Calendar with returned data from Google Calendar feed.  Returns true if successful.
+  def load(string)
     @exists = true
-    @xml = text
-    xml = REXML::Document.new(text)
+    @xml = string
+    xml = REXML::Document.new(string)
     xml.root.elements.each(){}.map do |ele|
       case ele.name
         when "id"
@@ -211,9 +277,17 @@ class Calendar
     return true
   end
   
-  def to_iframe()
+  #Returns a HTML <iframe> tag displaying the calendar.
+  def to_iframe(height=300, width=400)
     
   end
+  
+  private
+  @xml 
+  @exists = false
+  @public = false
+  @event_feed = ''
+  @edit_feed = ''
   
 end 
 

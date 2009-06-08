@@ -9,6 +9,10 @@ require "time"
 
 Net::HTTP.version_1_2
 
+# GCal4Ruby is a full featured wrapper for the google calendar API
+
+# =Usage:
+
 module GCal4Ruby
   
   CALENDAR_XML = "<entry xmlns='http://www.w3.org/2005/Atom' 
@@ -59,6 +63,8 @@ module GCal4Ruby
     
   class RecurrenceValueError < StandardError; end
 
+  #The ProxyInfo class contains information for configuring a proxy connection
+
   class ProxyInfo
     attr_accessor :address, :port, :username, :password
     @address = nil
@@ -66,13 +72,20 @@ module GCal4Ruby
     @username = nil
     @password = nil
 
-    def initialize(address=nil, port=nil, username=nil, password=nil)
+    #The initialize function accepts four variables for configuring the ProxyInfo object.  
+    #The proxy connection is initiated using the builtin Net::HTTP proxy support.
+
+    def initialize(address, port, username=nil, password=nil)
       @address = address
       @port = port
       @username = username
       @password = password
     end
   end
+  
+  #The Base class includes the basic HTTP methods for sending and receiving 
+  #messages from the Google Calendar API.  You shouldn't have to use this class 
+  #directly, rather access the functionality through the Service subclass.
 
   class Base
     AUTH_URL = "https://www.google.com/accounts/ClientLogin"
@@ -81,9 +94,15 @@ module GCal4Ruby
     @auth_token = nil
     @debug = false
 
-    attr_reader :auth_token
-    attr_accessor :proxy_info, :debug
-
+    #Contains the ProxyInfo object for using a proxy server
+    attr_accessor :proxy_info
+    
+    #If set to true, debug will dump all raw HTTP requests and responses
+    attr_accessor :debug
+    
+    # Sends an HTTP POST request.  The header should be a hash of name/value pairs.  
+    # Returns the Net::HTTPResponse object on succces, or raises the appropriate
+    # error if a non 20x response code is received.
     def send_post(url, content, header=nil)
       header = auth_header(header)
       ret = nil
@@ -113,7 +132,10 @@ module GCal4Ruby
         raise HTTPPostFailed, ret.body
       end
     end
-
+    
+    # Sends an HTTP PUT request.  The header should be a hash of name/value pairs.  
+    # Returns the Net::HTTPResponse object on succces, or raises the appropriate
+    # error if a non 20x response code is received.
     def send_put(url, content, header=nil)
       header = auth_header(header)
       ret = nil
@@ -144,7 +166,10 @@ module GCal4Ruby
       end
     end
 
-    def send_get(url, h = nil)
+    # Sends an HTTP GET request.  The header should be a hash of name/value pairs.  
+    # Returns the Net::HTTPResponse object on succces, or raises the appropriate
+    # error if a non 20x response code is received.
+    def send_get(url, header = nil)
       header = auth_header(header)
       ret = nil
       location = URI.parse(url)
@@ -174,6 +199,9 @@ module GCal4Ruby
       end
     end
 
+    # Sends an HTTP DELETE request.  The header should be a hash of name/value pairs.  
+    # Returns the Net::HTTPResponse object on succces, or raises the appropriate
+    # error if a non 20x response code is received.
     def send_delete(url, header = nil)
       header = auth_header(header)
       ret = nil
@@ -202,10 +230,6 @@ module GCal4Ruby
         puts "invalid response received: "+ret.code if @debug
         raise HTTPDeleteFailed, ret.body
       end
-    end
-
-    def send_raw(url, header, content)
-
     end
 
     private

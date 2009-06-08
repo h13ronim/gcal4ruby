@@ -1,25 +1,36 @@
 require 'gcal4ruby/recurrence'
 
 module GCal4Ruby
+  #The Event Class represents a remote event in calendar.
   class Event
-    attr_accessor :title, :content, :where, :transparency, :status, :id
-    attr_reader :start, :end, :edit_feed
-    @exists = false
-    @calendar = nil
-    @xml = nil
-    @etag = nil
-    @recurrence = nil
-    @deleted = false
+    attr_accessor :title
+    attr_accessor :content
+    attr_accessor :where
+    attr_accessor :transparency
+    attr_accessor :status
+    attr_accessor :id
     
+    attr_reader :start
+    attr_reader :end
+    
+    #Returns the current event's Recurrence information
     def recurrence
       @recurrence
     end
     
+    #Sets the event's recurrence information to a Recurrence object.  Returns true if successful,
+    #false otherwise
     def recurrence=(r)
-      r.event = self
-      @recurrence = r
+      if r.is_a?(Recurrence)
+        r.event = self
+        @recurrence = r
+        return true
+      else
+        return false
+      end
     end
     
+    #Returns a duplicate of the current event as a new Event object
     def copy()
       e = Event.new()
       e.load(to_xml)
@@ -27,6 +38,8 @@ module GCal4Ruby
       return e
     end
     
+    #Sets the start time of the Event.  Must be a Time object or a parsable string representation
+    #of a time.
     def start=(str)
       if str.class == String
         @start = Time.parse(str)      
@@ -37,6 +50,8 @@ module GCal4Ruby
       end
     end
     
+    #Sets the end time of the Event.  Must be a Time object or a parsable string representation
+    #of a time.
     def end=(str)
       if str.class == String
         @end = Time.parse(str)      
@@ -47,6 +62,7 @@ module GCal4Ruby
       end
     end
     
+    #Deletes the event from the Google Calendar Service.  All values are cleared.
     def delete
         if @exists    
           if @calendar.service.send_delete(@edit_feed, {"If-Match" => @etag})
@@ -69,6 +85,7 @@ module GCal4Ruby
         end
     end
     
+    #Creates a new Event.  Accepts a valid Calendar object.
     def initialize(calendar)
       super()
       @xml = EVENT_XML
@@ -82,6 +99,8 @@ module GCal4Ruby
       @status = "http://schemas.google.com/g/2005#event.confirmed"
     end
     
+    #If the event does not exist on the Google Calendar service, save creates it.  Otherwise
+    #updates the existing event data.  Returns true on success, false otherwise.
     def save
       if @deleted
         return false
@@ -101,6 +120,7 @@ module GCal4Ruby
       return true
     end
     
+    #Returns an XML representation of the event.
     def to_xml()
       xml = REXML::Document.new(@xml)
       xml.root.elements.each(){}.map do |ele|
@@ -130,8 +150,9 @@ module GCal4Ruby
       xml.to_s
     end
     
-    def load(text)
-      @xml = text
+    #Loads the event info from an XML string.
+    def load(string)
+      @xml = string
       @exists = true
       xml = REXML::Document.new(text)
       @etag = xml.root.attributes['etag']
@@ -160,18 +181,25 @@ module GCal4Ruby
         end
     end
     
+    #Reloads the event data from the Google Calendar Service.  Returns true if successful,
+    #false otherwise.
     def reload
       t = Event.find(service, :first, @id)
       if t
-        load(t.xml)
+        if load(t.xml)
+         return true
+        else
+         return false
+        end
       else
         return false
       end
     end
     
-    
-    def self.find(calendar, term, scope = :all)
-        events = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full?q="+CGI.escape(term))
+    #Finds the event that matches search_term in title or description full text search.  The scope parameter can
+    #be either :all to return an array of all matches, or :first to return the first match as an Event. 
+    def self.find(calendar, search_term, scope = :all)
+        events = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full?q="+CGI.escape(search_term))
         ret = []
         REXML::Document.new(events.read_body).root.elements.each("entry"){}.map do |entry|
           entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"
@@ -188,8 +216,20 @@ module GCal4Ruby
       end
       return false
     end
+    
+    #Returns true if the event exists on the Google Calendar Service.
+    def exists?
+      return @exists
+    end
   
-  
+    private 
+    @exists = false
+    @calendar = nil
+    @xml = nil
+    @etag = nil
+    @recurrence = nil
+    @deleted = false
+    @edit_feed = ''
 end
 
 end
