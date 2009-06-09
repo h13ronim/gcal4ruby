@@ -29,6 +29,23 @@ module GCal4Ruby
   #    event.recurrence.frequency = {"weekly" => ["SA"]}
   #    event.save 
   #
+  #5. Create an event with a 15 minute email reminder
+  #    event = Event.new(calendar)
+  #    event.title = "Dinner with Kate"
+  #    event.start = Time.parse("20-06-2009 at 5 pm")
+  #    event.end = Time.parse("20-06-209 at 8 pm")
+  #    event.where = "Luigi's"
+  #    event.reminder = {:minutes => 15, :method => 'email'}
+  #    event.save
+  #
+  #6. Create an event with attendees
+  #    event = Event.new(calendar)
+  #    event.title = "Dinner with Kate"
+  #    event.start = Time.parse("20-06-2009 at 5 pm")
+  #    event.end = Time.parse("20-06-209 at 8 pm")
+  #    event.attendees => {:name => "Kate", :email => "kate@gmail.com"}
+  #    event.save
+  #
   #After an event object has been created or loaded, you can change any of the 
   #attributes like you would any other object.  Be sure to save the event to write changes
   #to the Google Calendar service.
@@ -224,12 +241,16 @@ module GCal4Ruby
               "http://schemas.google.com/g/2005#event.tentative"
             when :cancelled
               "http://schemas.google.com/g/2005#event.canceled"
+            else
+              "http://schemas.google.com/g/2005#event.confirmed"
           end
         when "transparency"
           ele.attributes["value"] = case @transparency
               when :free
                 "http://schemas.google.com/g/2005#event.transparent"
               when :busy
+                "http://schemas.google.com/g/2005#event.opaque"
+              else
                 "http://schemas.google.com/g/2005#event.opaque"
             end
         when "where"
