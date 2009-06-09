@@ -1,30 +1,98 @@
 require 'gcal4ruby/recurrence'
 
 module GCal4Ruby
-  #The Event Class represents a remote event in calendar.
+  #The Event Class represents a remote event in calendar. 
+  #
+  #=Usage
+  #All usages assume a successfully authenticated Service and valid Calendar.
+  #1. Create a new Event
+  #    event = Event.new(calendar)
+  #    event.title = "Soccer Game"
+  #    event.start = Time.parse("12-06-2009 at 12:30 PM")
+  #    event.end = Time.parse("12-06-2009 at 1:30 PM")
+  #    event.where = "Merry Playfields"
+  #    event.save
+  #
+  #2. Find an existing Event
+  #    event = Event.find(cal, "Soccer Game", :first)
+  #
+  #3. Find all events containing the search term
+  #    event = Event.find(cal, "Soccer Game")
+  #
+  #4. Create a recurring event for every saturday
+  #    event = Event.new(calendar)
+  #    event.title = "Baseball Game"
+  #    event.where = "Municipal Stadium"
+  #    event.recurrence = Recurrence.new
+  #    event.recurrence.start = Time.parse("13-06-2009 at 4:30 PM")
+  #    event.recurrence.end = Time.parse("13-06-2009 at 6:30 PM")
+  #    event.recurrence.frequency = {"weekly" => ["SA"]}
+  #    event.save 
+  #
+  #After an event object has been created or loaded, you can change any of the 
+  #attributes like you would any other object.  Be sure to save the event to write changes
+  #to the Google Calendar service.
   class Event
+    #The event title
     attr_accessor :title
+    #The content for the event
     attr_accessor :content
+    #The location of the event
     attr_accessor :where
+    #A flag for whether the event show as :free or :busy
     attr_accessor :transparency
+    #A flag indicating the status of the event.  Values can be :confirmed, :tentative or :cancelled
     attr_accessor :status
+    #The unique event ID
     attr_accessor :id
     
+    @attendees
+    
+    #The event start time
     attr_reader :start
+    #The event end time
     attr_reader :end
+    #The reminder settings for the event, returned as a hash
+    attr_reader :reminder
+    
+    #Sets the reminder options for the event.  Parameter must be a hash containing one of 
+    #:hours, :minutes and :days, which are simply the number of each before the event start date you'd like to 
+    #receive the reminder.  
+    #
+    #:method can be one of the following:
+    #- <b>'alert'</b>: causes an alert to appear when a user is viewing the calendar in a browser
+    #- <b>'email'</b>: sends the user an email message
+    def reminder=(r)
+      @reminder = r
+    end
     
     #Returns the current event's Recurrence information
     def recurrence
       @recurrence
     end
     
-    #Sets the event's recurrence information to a Recurrence object.  Returns true if successful,
+    #Returns an array of the current attendees
+    def attendees
+      @attendees
+    end
+    
+    #Accepts an array of email address/name pairs for attendees.  
+    #  [{:name => 'Mike Reich', :email => 'mike@seabourneconsulting.com'}]
+    #The email address is requried, but the name is optional
+    def attendees=(a)
+      if a.is_a?(Array)
+        @attendees = a
+      else
+        raise "Attendees must be an Array of email/name hash pairs"
+      end
+    end
+    
+    #Sets the event's recurrence information to a Recurrence object.  Returns the recurrence if successful,
     #false otherwise
     def recurrence=(r)
       if r.is_a?(Recurrence)
         r.event = self
         @recurrence = r
-        return true
       else
         return false
       end
@@ -97,6 +165,8 @@ module GCal4Ruby
       @where = nil
       @transparency = "http://schemas.google.com/g/2005#event.opaque"
       @status = "http://schemas.google.com/g/2005#event.confirmed"
+      @attendees = []
+      @reminder = nil
     end
     
     #If the event does not exist on the Google Calendar service, save creates it.  Otherwise
@@ -135,16 +205,40 @@ module GCal4Ruby
           if not @recurrence
             ele.attributes["startTime"] = @start.xmlschema
             ele.attributes["endTime"] = @end.xmlschema
+            set_reminder(ele)
           else
-            xml.root.delete_element("/entry/gd:when")
-            xml.root.add_element("gd:recurrence").text = @recurrence.to_s
+            if not @reminder
+              xml.root.delete_element("/entry/gd:when")
+              xml.root.add_element("gd:recurrence").text = @recurrence.to_s
+            else
+              ele.delete_attribute('startTime')
+              ele.delete_attribute('startTime')
+              set_reminder(ele)  
+            end
           end
         when "eventStatus"
-          ele.attributes["value"] = @status
+          ele.attributes["value"] = case @status
+            when :confirmed
+              "http://schemas.google.com/g/2005#event.confirmed"
+            when :tentative
+              "http://schemas.google.com/g/2005#event.tentative"
+            when :cancelled
+              "http://schemas.google.com/g/2005#event.canceled"
+          end
         when "transparency"
-          ele.attributes["value"] = @transparency
+          ele.attributes["value"] = case @transparency
+              when :free
+                "http://schemas.google.com/g/2005#event.transparent"
+              when :busy
+                "http://schemas.google.com/g/2005#event.opaque"
+            end
         when "where"
           ele.attributes["valueString"] = @where
+        end
+      end        
+      if not @attendees.empty?
+        @attendees.each do |a|
+          xml.root.add_element("gd:who", {"email" => a[:email], "valueString" => a[:name], "rel" => "http://schemas.google.com/g/2005#event.attendee"})
         end
       end
       xml.to_s
@@ -154,7 +248,7 @@ module GCal4Ruby
     def load(string)
       @xml = string
       @exists = true
-      xml = REXML::Document.new(text)
+      xml = REXML::Document.new(string)
       @etag = xml.root.attributes['etag']
       xml.root.elements.each(){}.map do |ele|
           case ele.name
@@ -164,18 +258,46 @@ module GCal4Ruby
                 @title = ele.text
               when 'content'
                 @content = ele.text
-              when "transparency"
-                @transparency = ele.attributes['value']
-              when "eventStatus"
-                @status = ele.attributes['value']
               when "when"
                 @start = Time.parse(ele.attributes['startTime'])
                 @end = Time.parse(ele.attributes['endTime'])
+                ele.elements.each("gd:reminder") do |r|
+                  @reminder = {:minutes => r.attributes['minutes'] ? r.attributes['minutes'] : 0, :hours => r.attributes['hours'] ? r.attributes['hours'] : 0, :days => r.attributes['days'] ? r.attributes['days'] : 0, :method => r.attributes['method'] ? r.attributes['method'] : ''}
+                end
               when "where"
                 @where = ele.attributes['valueString']
               when "link"
                 if ele.attributes['rel'] == 'edit'
                   @edit_feed = ele.attributes['href']
+                end
+              when "who"
+                if ele.attributes['rel'] == "http://schemas.google.com/g/2005#event.attendee"
+                n = {}
+                ele.attributes.each do |name, value|
+                    case name
+                      when "email"
+                        n[:email] = value
+                      when "valueString"
+                        n[:name] = value
+                    end
+                  end                
+               @attendees << n
+               end
+              when "eventStatus"
+              case ele.attributes["value"] 
+                when "http://schemas.google.com/g/2005#event.confirmed"
+                 @status =  :confirmed
+                when "http://schemas.google.com/g/2005#event.tentative"
+                  @status = :tentative
+                when "http://schemas.google.com/g/2005#event.confirmed"
+                  @status = :cancelled
+              end
+            when "transparency"
+               case ele.attributes["value"]
+                  when "http://schemas.google.com/g/2005#event.transparent" 
+                    @transparency = :free
+                  when "http://schemas.google.com/g/2005#event.opaque"
+                    @transparency = :busy
                 end
             end      
         end
@@ -184,7 +306,7 @@ module GCal4Ruby
     #Reloads the event data from the Google Calendar Service.  Returns true if successful,
     #false otherwise.
     def reload
-      t = Event.find(service, :first, @id)
+      t = Event.find(@calendar, @id, :first)
       if t
         if load(t.xml)
          return true
@@ -230,6 +352,30 @@ module GCal4Ruby
     @recurrence = nil
     @deleted = false
     @edit_feed = ''
+    
+    def set_reminder(ele)
+      ele.delete_element("gd:reminder")
+      if @reminder
+        e = ele.add_element("gd:reminder")
+        used = false
+        if @reminder[:minutes] 
+          e.attributes['minutes'] = @reminder[:minutes] 
+          used = true
+        elsif @reminder[:hours] and not used
+          e.attributes['hours'] = @reminder[:hours]
+          used = true
+        elsif @reminder[:days] and not used
+          e.attributes['days'] = @reminder[:days]
+        end
+        if @reminder[:method] 
+          e.attributes['method'] = @reminder[:method]
+        else
+          e.attributes['method'] = 'email'
+        end
+      else
+        ele.delete_element("gd:reminder")
+      end
+    end
 end
 
 end

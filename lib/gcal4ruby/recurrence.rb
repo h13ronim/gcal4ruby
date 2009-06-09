@@ -50,7 +50,7 @@ module GCal4Ruby
       output += "RRULE:"
       if @frequency
         f = 'FREQ='
-        i = 'INTERVAL='
+        i = ''
         by = ''
         @frequency.each do |key, v|
           if v.is_a?(Array) 
@@ -62,7 +62,7 @@ module GCal4Ruby
           else
             value = v
           end
-          f += "#{key.upcase};"
+          f += "#{key.upcase};" if key != 'interval'
           case key.downcase
             when "secondly"
               by += "BYSECOND=#{value};"
@@ -77,11 +77,11 @@ module GCal4Ruby
             when "yearly"
               by += "BYYEARDAY=#{value}"
             when 'interval'
-              i += "#{value};"
+              i += "INTERVAL=#{value};"
           end
         end
         output += f+i+by
-      end
+      end      
       if @repeat_until
         output += ";UNTIL=#{@repeat_until.strftime("%Y%m%d")}"
       end

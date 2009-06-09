@@ -52,6 +52,9 @@ class Calendar
   #A boolean value indicating whether the calendar appears by default when viewed online
   attr_accessor :selected
   
+  #The event feed for the calendar
+  attr_reader :event_feed
+  
   #Returns true if the calendar exists on the Google Calendar system (i.e. was 
   #loaded or has been saved).  Otherwise returns false.
   def exists?
