@@ -55,6 +55,9 @@ class Calendar
   #The event feed for the calendar
   attr_reader :event_feed
   
+  #A flag indicating whether the calendar is editable by this account 
+  attr_reader :editable
+  
   #Returns true if the calendar exists on the Google Calendar system (i.e. was 
   #loaded or has been saved).  Otherwise returns false.
   def exists?
@@ -203,7 +206,7 @@ class Calendar
     end  
     t = Calendar.find(service, @id, :first)
     if t
-      load(t.xml)
+      load(t.to_xml)
     else
       return false
     end
@@ -221,11 +224,11 @@ class Calendar
       when "timezone"
         ele.attributes["value"] = @timezone
       when "hidden"
-        ele.attributes["value"] = @hidden
+        ele.attributes["value"] = @hidden.to_s
       when "color"
         ele.attributes["value"] = @color
       when "selected"
-        ele.attributes["value"] = @selected
+        ele.attributes["value"] = @selected.to_s
       end
     end
     xml.to_s
@@ -262,7 +265,16 @@ class Calendar
     @event_feed = "http://www.google.com/calendar/feeds/#{@id}/private/full"
     
     puts "Getting ACL Feed" if @service.debug
-    ret = @service.send_get("http://www.google.com/calendar/feeds/#{@id}/acl/full/")
+    
+    #rescue error on shared calenar ACL list access
+    begin 
+      ret = @service.send_get("http://www.google.com/calendar/feeds/#{@id}/acl/full/")
+    rescue Exception => e
+      @public = false
+      @editable = false
+      return true
+    end
+    @editable = true
     r = REXML::Document.new(ret.read_body)
     r.root.elements.each("entry") do |ele|
       ele.elements.each do |e|

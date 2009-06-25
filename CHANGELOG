@@ -1,0 +1,13 @@
+#=CHANGELOG
+#==version 0.1.4
+#* Added additional search criteria for Event.find
+#==version 0.1.3
+#* Added support for authenticating with Google Hosted Apps accounts
+#* Added flag to indicate whether a calendar is editable
+#* Added handling to gracefully throw error when trying to create event on a non-editable (shared) calendar
+#==version 0.1.2
+#* Fixed to_xml dump problem with hidden and selected attributes
+#==version 0.1.1
+#* Added all_day indicator to event to indicate an all day event
+#==version 0.1.0
+#* Initial Version

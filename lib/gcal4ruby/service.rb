@@ -28,7 +28,7 @@ class Service < Base
   # If authentication succeeds, returns true, otherwise raises the AuthenticationFailed error.
   def authenticate(username, password)
     ret = nil
-    ret = send_post(AUTH_URL, "Email=#{username}&Passwd=#{password}&source=GCal4Ruby&service=cl")
+    ret = send_post(AUTH_URL, "Email=#{username}&Passwd=#{password}&source=GCal4Ruby&service=cl&accountType=HOSTED_OR_GOOGLE")
     if ret.class == Net::HTTPOK
       @auth_token = ret.read_body.to_a[2].gsub("Auth=", "").strip
       @account = username

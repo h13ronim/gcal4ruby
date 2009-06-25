@@ -62,6 +62,8 @@ module GCal4Ruby
     attr_accessor :status
     #The unique event ID
     attr_accessor :id
+    #Flag indicating whether it is an all day event
+    attr_accessor :all_day
     
     @attendees
     
@@ -126,9 +128,9 @@ module GCal4Ruby
     #Sets the start time of the Event.  Must be a Time object or a parsable string representation
     #of a time.
     def start=(str)
-      if str.class == String
+      if str.is_a?String
         @start = Time.parse(str)      
-      elsif str.class == Time
+      elsif str.is_a?Time
         @start = str
       else
         raise "Start Time must be either Time or String"
@@ -138,9 +140,9 @@ module GCal4Ruby
     #Sets the end time of the Event.  Must be a Time object or a parsable string representation
     #of a time.
     def end=(str)
-      if str.class == String
+      if str.is_a?String
         @end = Time.parse(str)      
-      elsif str.class == Time
+      elsif str.is_a?Time
         @end = str
       else
         raise "End Time must be either Time or String"
@@ -172,6 +174,9 @@ module GCal4Ruby
     
     #Creates a new Event.  Accepts a valid Calendar object.
     def initialize(calendar)
+      if not calendar.editable
+        raise CalendarNotEditable
+      end
       super()
       @xml = EVENT_XML
       @calendar = calendar
@@ -184,6 +189,7 @@ module GCal4Ruby
       @status = "http://schemas.google.com/g/2005#event.confirmed"
       @attendees = []
       @reminder = nil
+      @all_day = false
     end
     
     #If the event does not exist on the Google Calendar service, save creates it.  Otherwise
@@ -220,8 +226,8 @@ module GCal4Ruby
           ele.text = @content
         when "when"
           if not @recurrence
-            ele.attributes["startTime"] = @start.xmlschema
-            ele.attributes["endTime"] = @end.xmlschema
+            ele.attributes["startTime"] = @all_day ? @start.strftime("%Y-%m-%d") : @start.xmlschema
+            ele.attributes["endTime"] = @all_day ? @end.strftime("%Y-%m-%d") : @end.xmlschema
             set_reminder(ele)
           else
             if not @reminder
@@ -229,7 +235,7 @@ module GCal4Ruby
               xml.root.add_element("gd:recurrence").text = @recurrence.to_s
             else
               ele.delete_attribute('startTime')
-              ele.delete_attribute('startTime')
+              ele.delete_attribute('endTime')
               set_reminder(ele)  
             end
           end
@@ -339,10 +345,19 @@ module GCal4Ruby
       end
     end
     
-    #Finds the event that matches search_term in title or description full text search.  The scope parameter can
-    #be either :all to return an array of all matches, or :first to return the first match as an Event. 
-    def self.find(calendar, search_term, scope = :all)
-        events = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full?q="+CGI.escape(search_term))
+    #Finds the event that matches search_term in title or description full text search.  
+    #* The scope parameter can be either :all to return an array of all matches, or :first to return the first match as an Event. 
+    #* The range parameter must be a hash containing a :start and :end values as Times specifying the date range to query by.  Defaults to all dates.
+    def self.find(calendar, search_term = '', scope = :all, range = {})
+        if not range.is_a? Hash or (range.size > 0 and (not range[:start].is_a? Time or not range[:end].is_a? Time))
+          raise "The date range must be a hash including the :start and :end date values as Times"
+        else
+          date_range = ''
+          if range.size > 0
+            date_range = "&start-min=#{range[:start].xmlschema}&start-max=#{range[:end].xmlschema}"
+          end
+        end
+        events = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full?q="+CGI.escape(search_term)+date_range)
         ret = []
         REXML::Document.new(events.read_body).root.elements.each("entry"){}.map do |entry|
           entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"

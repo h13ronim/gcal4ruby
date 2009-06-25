@@ -62,6 +62,10 @@ module GCal4Ruby
   class EventSaveFailed < StandardError; end
     
   class RecurrenceValueError < StandardError; end
+    
+  class CalendarNotEditable < StandardError; end
+    
+  class QueryParameterError < StandardError; end
 
   #The ProxyInfo class contains information for configuring a proxy connection
 

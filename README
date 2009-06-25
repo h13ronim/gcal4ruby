@@ -9,6 +9,8 @@
 #GCal4Ruby was created and is maintained by {Mike Reich}[mailto:mike@seabourneconsulting.com] 
 #and is licenses under the GPL v2.  Feel free to use and update, but be sure to contribute your
 #code back to the project and attribute as required by the license.
+#===Website
+#http://rubyforge.org/projects/gcal4ruby/
 #
 #==Description
 #GCal4Ruby has three major components: the service, calendar and event objects.  Each service
