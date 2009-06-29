@@ -345,19 +345,44 @@ module GCal4Ruby
       end
     end
     
-    #Finds the event that matches search_term in title or description full text search.  
-    #* The scope parameter can be either :all to return an array of all matches, or :first to return the first match as an Event. 
-    #* The range parameter must be a hash containing a :start and :end values as Times specifying the date range to query by.  Defaults to all dates.
-    def self.find(calendar, search_term = '', scope = :all, range = {})
+    #Finds the event that matches a query term in the event title or description.  
+    #The params hash can contain the following hash values
+    #* *scope*: may be :all or :first, indicating whether to return the first record found or an array of all records that match the query.  Default is :all.
+    #* *query*: the text string to query the google service by.
+    #* *range*: a hash including a :start and :end time to constrain the search by
+    #* *max_results*: an integer indicating the number of results to return.  Default is 25.
+    #* *sort_order*: either 'ascending' or 'descending'.
+    #* *single_events*: either 'true' to return all recurring events as a single entry, or 'false' to return all recurring events as a unique event for each recurrence.
+    #* *ctz*: the timezone to return the event times in
+    def self.find(calendar, params = {})
+      query_string = ''
+      
+      #parse params hash for values
+      range = params[:range] || nil
+      query = params[:query] || ''
+      max_results = params[:max_results] || nil
+      sort_order = params[:sortorder] || nil
+      single_events = params[:singleevents] || nil
+      timezone = params[:ctz] || nil
+      
+      #set up query string
+      query_string += "q=#{query}" if query
+      if range
         if not range.is_a? Hash or (range.size > 0 and (not range[:start].is_a? Time or not range[:end].is_a? Time))
           raise "The date range must be a hash including the :start and :end date values as Times"
         else
           date_range = ''
           if range.size > 0
-            date_range = "&start-min=#{range[:start].xmlschema}&start-max=#{range[:end].xmlschema}"
+            query_string += "&start-min=#{range[:start].xmlschema}&start-max=#{range[:end].xmlschema}"
           end
         end
-        events = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full?q="+CGI.escape(search_term)+date_range)
+      end
+      query_string += "&max-results=#{max_results}" if max_results
+      query_string += "&sortorder=#{sort_order}" if sort_order
+      query_string += "&ctz=#{timezone.gsub(" ", "_")}" if timezone
+      query_string += "&singleevents#{single_events}" if single_events
+      if query_string
+        events = calendar.service.send_get("http://www.google.com/calendar/feeds/default/private/full?"+query_string)
         ret = []
         REXML::Document.new(events.read_body).root.elements.each("entry"){}.map do |entry|
           entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"
@@ -366,13 +391,13 @@ module GCal4Ruby
           event = Event.new(calendar)
           event.load("<?xml version='1.0' encoding='UTF-8'?>#{entry.to_s}")
           ret << event
+        end
       end
-      if scope == :all
-        return ret
-      elsif scope == :first
+      if params[:scope] == :first
         return ret[0]
+      else
+        return ret
       end
-      return false
     end
     
     #Returns true if the event exists on the Google Calendar Service.
@@ -412,7 +437,6 @@ module GCal4Ruby
         ele.delete_element("gd:reminder")
       end
     end
-end
-
+  end
 end
 

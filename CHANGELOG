@@ -1,4 +1,7 @@
 #=CHANGELOG
+#==version 0.1.5
+#* Fixed redirect URI query params problem
+#* Updated syntax for finding events to include most google api parameters
 #==version 0.1.4
 #* Added additional search criteria for Event.find
 #==version 0.1.3

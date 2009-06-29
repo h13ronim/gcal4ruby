@@ -120,7 +120,7 @@ module GCal4Ruby
       end
       puts "Starting post\nHeader: #{header}\nContent: #{content}" if @debug
       https.start do |http|
-        ret = http.post(location.path, content, header)
+        ret = http.post(location.to_s, content, header)
       end
       while ret.is_a?(Net::HTTPRedirection)
         puts "Redirect recieved, resending post" if @debug
@@ -153,7 +153,7 @@ module GCal4Ruby
       end
       puts "Starting post\nHeader: #{header}\nContent: #{content}" if @debug
       https.start do |http|
-        ret = http.put(location.path, content, header)
+        ret = http.put(location.to_s, content, header)
       end
       while ret.is_a?(Net::HTTPRedirection)
         puts "Redirect recieved, resending post" if @debug
@@ -186,10 +186,10 @@ module GCal4Ruby
       end
       puts "Starting post\nHeader: #{header}\n" if @debug
       http.start do |http|
-        ret = http.get(location.path, header)
+        ret = http.get(location.to_s, header)
       end
       while ret.is_a?(Net::HTTPRedirection)
-        puts "Redirect recieved, resending post" if @debug
+        puts "Redirect recieved, resending get to #{ret['location']}" if @debug
     	  http.start do |http|
     	    ret = http.get(ret['location'], header)
     	  end
@@ -198,7 +198,7 @@ module GCal4Ruby
         puts "20x response recieved\nResponse: \n"+ret.read_body if @debug
         return ret
       else
-        puts "Redirect recieved, resending post" if @debug
+        puts "Error recieved, resending get" if @debug
         raise HTTPGetFailed, ret.body
       end
     end
@@ -219,7 +219,7 @@ module GCal4Ruby
       end
       puts "Starting post\nHeader: #{header}\n" if @debug
       https.start do |http|
-        ret = http.delete(location.path, header)
+        ret = http.delete(location.to_s, header)
       end
       while ret.is_a?(Net::HTTPRedirection)
         puts "Redirect recieved, resending post" if @debug
