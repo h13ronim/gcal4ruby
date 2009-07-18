@@ -14,7 +14,7 @@ module GCal4Ruby
   #    event.save
   #
   #2. Find an existing Event
-  #    event = Event.find(cal, "Soccer Game", :first)
+  #    event = Event.find(cal, "Soccer Game", {:scope => :first})
   #
   #3. Find all events containing the search term
   #    event = Event.find(cal, "Soccer Game")
@@ -73,6 +73,12 @@ module GCal4Ruby
     attr_reader :end
     #The reminder settings for the event, returned as a hash
     attr_reader :reminder
+    #The date the event was created
+    attr_reader :published
+    #The date the event was last updated
+    attr_reader :updated
+    #The date the event was last edited
+    attr_reader :edited
     
     #Sets the reminder options for the event.  Parameter must be a hash containing one of 
     #:hours, :minutes and :days, which are simply the number of each before the event start date you'd like to 
@@ -210,6 +216,7 @@ module GCal4Ruby
           raise EventSaveFailed
         end
       end
+      reload
       return true
     end
     
@@ -279,6 +286,12 @@ module GCal4Ruby
       @etag = xml.root.attributes['etag']
       xml.root.elements.each(){}.map do |ele|
           case ele.name
+             when 'updated'
+                @updated = ele.text
+             when 'published'
+                @published = ele.text
+             when 'edited'
+                @edited = ele.text
              when 'id'
                 @id, @edit_feed = ele.text
              when 'title'
@@ -333,9 +346,9 @@ module GCal4Ruby
     #Reloads the event data from the Google Calendar Service.  Returns true if successful,
     #false otherwise.
     def reload
-      t = Event.find(@calendar, @id, :first)
+      t = Event.find(@calendar, @id)
       if t
-        if load(t.xml)
+        if load(t.to_xml)
          return true
         else
          return false
@@ -345,28 +358,55 @@ module GCal4Ruby
       end
     end
     
-    #Finds the event that matches a query term in the event title or description.  
+    #Finds the event that matches a query term in the event title or description.
+    #  
+    #'query' is a string to perform the search on or an event id.
+    # 
     #The params hash can contain the following hash values
     #* *scope*: may be :all or :first, indicating whether to return the first record found or an array of all records that match the query.  Default is :all.
-    #* *query*: the text string to query the google service by.
     #* *range*: a hash including a :start and :end time to constrain the search by
     #* *max_results*: an integer indicating the number of results to return.  Default is 25.
     #* *sort_order*: either 'ascending' or 'descending'.
     #* *single_events*: either 'true' to return all recurring events as a single entry, or 'false' to return all recurring events as a unique event for each recurrence.
     #* *ctz*: the timezone to return the event times in
-    def self.find(calendar, params = {})
+    def self.find(calendar, query = '', params = {})
       query_string = ''
       
+      begin 
+        test = URI.parse(query).scheme
+      rescue Exception => e
+        test = nil
+      end
+      
+      if test
+        puts "id passed, finding event by id" if calendar.service.debug
+        es = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full")
+        REXML::Document.new(es.read_body).root.elements.each("entry"){}.map do |entry|
+          puts "element  = "+entry.name if calendar.service.debug
+          id = ''
+          entry.elements.each("id") {|v| id = v.text}
+          puts "id = #{id}" if calendar.service.debug
+          if id == query
+            entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"
+            entry.attributes["xmlns:gd"] = "http://schemas.google.com/g/2005"
+            entry.attributes["xmlns"] = "http://www.w3.org/2005/Atom"
+            event = Event.new(calendar)
+            event.load("<?xml version='1.0' encoding='UTF-8'?>#{entry.to_s}")
+            return event
+          end
+        end
+      end
+
+  
       #parse params hash for values
       range = params[:range] || nil
-      query = params[:query] || ''
       max_results = params[:max_results] || nil
       sort_order = params[:sortorder] || nil
       single_events = params[:singleevents] || nil
       timezone = params[:ctz] || nil
       
       #set up query string
-      query_string += "q=#{query}" if query
+      query_string += "q=#{CGI.escape(query)}" if query
       if range
         if not range.is_a? Hash or (range.size > 0 and (not range[:start].is_a? Time or not range[:end].is_a? Time))
           raise "The date range must be a hash including the :start and :end date values as Times"
@@ -382,7 +422,7 @@ module GCal4Ruby
       query_string += "&ctz=#{timezone.gsub(" ", "_")}" if timezone
       query_string += "&singleevents#{single_events}" if single_events
       if query_string
-        events = calendar.service.send_get("http://www.google.com/calendar/feeds/default/private/full?"+query_string)
+        events = calendar.service.send_get("http://www.google.com/calendar/feeds/#{calendar.id}/private/full?"+query_string)
         ret = []
         REXML::Document.new(events.read_body).root.elements.each("entry"){}.map do |entry|
           entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"

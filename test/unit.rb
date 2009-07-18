@@ -67,7 +67,15 @@ def calendar_test
     puts "Test 2 Failed"
   end
   
-  puts "3. Delete Calendar"
+  puts "3. Find Calendar by ID"
+  c = Calendar.find(@service, cal.id)
+  if c.title == cal.title
+    successful
+  else
+    failed "#{c.title} not equal to #{cal.title}"
+  end
+  
+  puts "4. Delete Calendar"
   if cal.delete and not cal.title
     successful
   else
@@ -98,7 +106,20 @@ def event_test
     failed
   end
   
-  puts "3. Delete Event"
+  puts "3. Reload Event"
+  if event.reload
+    successful
+  end
+  
+  puts "4. Find Event by id"
+  e = Event.find(@service.calendars[0], event.id)
+  if e.title == event.title
+    successful
+  else
+    failed "Found event doesn't match existing event"
+  end
+  
+  puts "5. Delete Event"
   if event.delete
     successful 
   else

@@ -1,7 +1,14 @@
 #=CHANGELOG
-#==version 0.1.5
+#==version 0.2.2
+#* Fixed URL encoding problem in Event.find method.
+#* cleaned up Event.find method to allow for finding events by id
+#* updated Calendar.find method to add params hash
+#* added 'published', 'updated', and 'edited' attributes
+#==version 0.2.1
+#* fixed Event.find calendar specification
+#==version 0.2.0
 #* Fixed redirect URI query params problem
-#* Updated syntax for finding events to include most google api parameters
+#* Updated syntax for finding events to include most google api parameters,  Non-backwards compatible.
 #==version 0.1.4
 #* Added additional search criteria for Event.find
 #==version 0.1.3

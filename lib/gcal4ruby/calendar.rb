@@ -179,7 +179,7 @@ class Calendar
   #should be an appropriately authenticated Service. The term parameter can be any string.  The
   #scope parameter may be either :all to return an array of matches, or :first to return 
   #the first match as a Calendar object.
-  def self.find(service, query_term, scope = :all)
+  def self.find(service, query_term=nil, params = {})
     t = query_term.downcase
     cals = service.calendars
     ret = []
@@ -187,10 +187,13 @@ class Calendar
       title = cal.title || ""
       summary = cal.summary || ""
       id = cal.id || ""
-      if title.downcase.match(t) or summary.downcase.match(t) or id.downcase.match(t)
-        if scope == :first
+      if id == query_term
+        return cal
+      end
+      if title.downcase.match(t) or summary.downcase.match(t)
+        if params[:scope] == :first
           return cal
-        elsif scope == :all
+        else
           ret << cal
         end
       end
