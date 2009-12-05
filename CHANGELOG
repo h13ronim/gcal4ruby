@@ -1,4 +1,13 @@
 #=CHANGELOG
+#==version 0.2.6
+#* Added fix for updated google calendar XML per http://cookingandcoding.wordpress.com/2009/06/08/new-ruby-google-calendar-api-gem-gcal4ruby/#comment-183
+#==version 0.2.5
+#* Added calendar color support to to_iframe methods in Calendar and Service.
+#==version 0.2.4
+#* Fixed bug with ACL check in Calendar#load
+#==version 0.2.3
+#* Implemented to_iframe method for calendars and services to output embeddable iframe text.
+#* Added switch to turn off ACL check for public calendars.  Can increase effeciency if turned off.
 #==version 0.2.2
 #* Fixed URL encoding problem in Event.find method.
 #* cleaned up Event.find method to allow for finding events by id

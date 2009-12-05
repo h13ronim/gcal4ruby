@@ -389,6 +389,7 @@ module GCal4Ruby
           if id == query
             entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"
             entry.attributes["xmlns:gd"] = "http://schemas.google.com/g/2005"
+            entry.attributes["xmlns:app"] = "http://www.w3.org/2007/app" #Per http://twitter.com/mgornick
             entry.attributes["xmlns"] = "http://www.w3.org/2005/Atom"
             event = Event.new(calendar)
             event.load("<?xml version='1.0' encoding='UTF-8'?>#{entry.to_s}")
@@ -427,6 +428,7 @@ module GCal4Ruby
         REXML::Document.new(events.read_body).root.elements.each("entry"){}.map do |entry|
           entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"
           entry.attributes["xmlns:gd"] = "http://schemas.google.com/g/2005"
+          entry.attributes["xmlns:app"] = "http://www.w3.org/2007/app"
           entry.attributes["xmlns"] = "http://www.w3.org/2005/Atom"
           event = Event.new(calendar)
           event.load("<?xml version='1.0' encoding='UTF-8'?>#{entry.to_s}")

@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
    s.name = %q{gcal4ruby}
-   s.version = "0.2.2"
-   s.date = %q{2009-07-16}
+   s.version = "0.2.6"
+   s.date = %q{2009-09-01}
    s.authors = ["Mike Reich"]
    s.email = %q{mike@seabourneconsulting.com}
    s.summary = %q{A full featured wrapper for interacting with the Google Calendar API}

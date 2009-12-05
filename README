@@ -52,7 +52,7 @@
 #    event.save
 #
 #2. Find an existing Event
-#    event = Event.find(cal, "Soccer Game", :first)
+#    event = Event.find(cal, "Soccer Game", {:scope => :first})
 #
 #3. Find all events containing the search term
 #    event = Event.find(cal, "Soccer Game")

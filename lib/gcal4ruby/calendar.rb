@@ -76,6 +76,7 @@ class Calendar
     REXML::Document.new(ret.body).root.elements.each("entry"){}.map do |entry|
       entry.attributes["xmlns:gCal"] = "http://schemas.google.com/gCal/2005"
       entry.attributes["xmlns:gd"] = "http://schemas.google.com/g/2005"
+      entry.attributes["xmlns:app"] = "http://www.w3.org/2007/app"
       entry.attributes["xmlns"] = "http://www.w3.org/2005/Atom"
       e = Event.new(self)
       if e.load(entry.to_s)
@@ -201,6 +202,20 @@ class Calendar
     ret
   end
   
+  def self.get(service, id)
+    url = 'http://www.google.com/calendar/feeds/default/allcalendars/full/'+id
+    ret = service.send_get(url)
+    puts "==return=="
+    puts ret.body
+  end
+  
+  def self.query(service, query_term)
+    url = 'http://www.google.com/calendar/feeds/default/allcalendars/full'+"?q="+CGI.escape(query_term)
+    ret = service.send_get(url)
+    puts "==return=="
+    puts ret.body
+  end
+  
   #Reloads the calendar objects information from the stored server version.  Returns true
   #if successful, otherwise returns false.  Any information not saved will be overwritten.
   def reload
@@ -267,39 +282,158 @@ class Calendar
     
     @event_feed = "http://www.google.com/calendar/feeds/#{@id}/private/full"
     
-    puts "Getting ACL Feed" if @service.debug
-    
-    #rescue error on shared calenar ACL list access
-    begin 
-      ret = @service.send_get("http://www.google.com/calendar/feeds/#{@id}/acl/full/")
-    rescue Exception => e
-      @public = false
-      @editable = false
-      return true
-    end
-    @editable = true
-    r = REXML::Document.new(ret.read_body)
-    r.root.elements.each("entry") do |ele|
-      ele.elements.each do |e|
-        #puts "e = "+e.to_s if @service.debug
-        #puts "previous element = "+e.previous_element.to_s if @service.debug
-        if e.name == 'role' and e.previous_element.name == 'scope' and e.previous_element.attributes['type'] == 'default'
-          if e.attributes['value'].match('#read')
-            @public = true
-          else
-            @public = false
+    if @service.check_public
+      puts "Getting ACL Feed" if @service.debug
+      
+      #rescue error on shared calenar ACL list access
+      begin 
+        ret = @service.send_get("http://www.google.com/calendar/feeds/#{@id}/acl/full/")
+      rescue Exception => e
+        @public = false
+        @editable = false
+        return true
+      end
+      @editable = true
+      r = REXML::Document.new(ret.read_body)
+      r.root.elements.each("entry") do |ele|
+        ele.elements.each do |e|
+          #puts "e = "+e.to_s if @service.debug
+          #puts "previous element = "+e.previous_element.to_s if @service.debug
+          if e.name == 'role' and e.previous_element.name == 'scope' and e.previous_element.attributes['type'] == 'default'
+            if e.attributes['value'].match('#read')
+              @public = true
+            else
+              @public = false
+            end
           end
         end
       end
+    else
+      @public = false
+      @editable = true
     end
     return true
   end
   
-  #Returns a HTML <iframe> tag displaying the calendar.
-  def to_iframe(height=300, width=400)
-    
+  #Helper function to return the currently loaded calendar formatted iframe embedded google calendar.  
+  #1. *params*: a hash of parameters that affect the display of the embedded calendar:
+  #   height:: the height of the embedded calendar in pixels
+  #   width:: the width of the embedded calendar in pixels
+  #   title:: the title to display
+  #   bgcolor:: the background color.  Limited choices, see google docs for allowable values.
+  #   color:: the color of the calendar elements.  Limited choices, see google docs for allowable values.
+  #   showTitle:: set to 'false' to hide the title
+  #   showDate:: set to 'false' to hide the current date
+  #   showNav:: set to 'false to hide the navigation tools
+  #   showPrint:: set to 'false' to hide the print icon
+  #   showTabs:: set to 'false' to hide the tabs
+  #   showCalendars:: set to 'false' to hide the calendars selection drop down
+  #   showTimezone:: set to 'false' to hide the timezone selection
+  #   border:: the border width in pixels
+  #   dates:: a range of dates to display in the format of 'yyyymmdd/yyyymmdd'.  Example: 20090820/20091001
+  #   privateKey:: use to display a private calendar.  You can find this key under the calendar settings pane of the Google Calendar website.
+  def to_iframe(params = {})
+    if not self.id
+      raise "The calendar must exist and be saved before you can use this method."
+    end
+    params[:id] = self.id
+    params[:height] ||= "600"
+    params[:width] ||= "600"
+    params[:bgcolor] ||= "#FFFFFF"
+    params[:color] ||= "#2952A3"
+    params[:showTitle] = params[:showTitle] == false ? "showTitle=0" : ''
+    params[:showNav] = params[:showNav] == false ? "showNav=0" : ''
+    params[:showDate] = params[:showDate] == false ? "showDate=0" : ''
+    params[:showPrint] = params[:showPrint] == false ? "showPrint=0" : ''
+    params[:showTabs] = params[:showTabs] == false ? "showTabs=0" : ''
+    params[:showCalendars] = params[:showCalendars] == false ? "showCalendars=0" : ''
+    params[:showTimezone] = params[:showTimezone] == false ? 'showTz=0' : ''
+    params[:border] ||= "0"
+    output = ''
+    params.each do |key, value|
+      case key
+        when :height then output += "height=#{value}"
+        when :width then output += "width=#{value}"
+        when :title then output += "title=#{CGI.escape(value)}"
+        when :bgcolor then output += "bgcolor=#{CGI.escape(value)}"
+        when :showTitle then output += value
+        when :showDate then output += value
+        when :showNav then output += value
+        when :showPrint then output += value
+        when :showTabs then output += value
+        when :showCalendars then output += value
+        when :showTimezone then output += value
+        when :viewMode then output += "mode=#{value}"
+        when :dates then output += "dates=#{CGI.escape(value)}"
+        when :privateKey then output += "pvttk=#{value}"
+      end
+      output += "&amp;"
+    end
+  
+    output += "src=#{params[:id]}&amp;color=#{CGI.escape(params[:color])}"
+        
+    "<iframe src='http://www.google.com/calendar/embed?#{output}' style='#{params[:border]} px solid;' width='#{params[:width]}' height='#{params[:height]}' frameborder='#{params[:border]}' scrolling='no'></iframe>"  
   end
   
+  #Helper function to return a specified calendar id as a formatted iframe embedded google calendar.  This function does not require loading the calendar information from the Google calendar
+  #service, but does require you know the google calendar id. 
+  #1. *id*: the unique google assigned id for the calendar to display.
+  #2. *params*: a hash of parameters that affect the display of the embedded calendar:
+  #   height:: the height of the embedded calendar in pixels
+  #   width:: the width of the embedded calendar in pixels
+  #   title:: the title to display
+  #   bgcolor:: the background color.  Limited choices, see google docs for allowable values.
+  #   color:: the color of the calendar elements.  Limited choices, see google docs for allowable values.
+  #   showTitle:: set to 'false' to hide the title
+  #   showDate:: set to 'false' to hide the current date
+  #   showNav:: set to 'false to hide the navigation tools
+  #   showPrint:: set to 'false' to hide the print icon
+  #   showTabs:: set to 'false' to hide the tabs
+  #   showCalendars:: set to 'false' to hide the calendars selection drop down
+  #   showTimezone:: set to 'false' to hide the timezone selection
+  #   border:: the border width in pixels
+  #   dates:: a range of dates to display in the format of 'yyyymmdd/yyyymmdd'.  Example: 20090820/20091001
+  #   privateKey:: use to display a private calendar.  You can find this key under the calendar settings pane of the Google Calendar website.
+  def self.to_iframe(id, params = {})
+    params[:id] = id
+    params[:height] ||= "600"
+    params[:width] ||= "600"
+    params[:bgcolor] ||= "#FFFFFF"
+    params[:color] ||= "#2952A3"
+    params[:showTitle] = params[:showTitle] == false ? "showTitle=0" : ''
+    params[:showNav] = params[:showNav] == false ? "showNav=0" : ''
+    params[:showDate] = params[:showDate] == false ? "showDate=0" : ''
+    params[:showPrint] = params[:showPrint] == false ? "showPrint=0" : ''
+    params[:showTabs] = params[:showTabs] == false ? "showTabs=0" : ''
+    params[:showCalendars] = params[:showCalendars] == false ? "showCalendars=0" : ''
+    params[:showTimezone] = params[:showTimezone] == false ? 'showTz=0' : ''
+    params[:border] ||= "0"
+    output = ''
+    params.each do |key, value|
+      case key
+        when :height then output += "height=#{value}"
+        when :width then output += "width=#{value}"
+        when :title then output += "title=#{CGI.escape(value)}"
+        when :bgcolor then output += "bgcolor=#{CGI.escape(value)}"
+        when :showTitle then output += value
+        when :showDate then output += value
+        when :showNav then output += value
+        when :showPrint then output += value
+        when :showTabs then output += value
+        when :showCalendars then output += value
+        when :showTimezone then output += value
+        when :viewMode then output += "mode=#{value}"
+        when :dates then output += "dates=#{CGI.escape(value)}"
+        when :privateKey then output += "pvttk=#{value}"
+      end
+      output += "&amp;"
+    end
+  
+    output += "src=#{params[:id]}&amp;color=#{CGI.escape(params[:color])}"
+        
+    "<iframe src='http://www.google.com/calendar/embed?#{output}' style='#{params[:border]} px solid;' width='#{params[:width]}' height='#{params[:height]}' frameborder='#{params[:border]}' scrolling='no'></iframe>"  
+  end
+
   private
   @xml 
   @exists = false
