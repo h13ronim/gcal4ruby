@@ -414,7 +414,7 @@ module GCal4Ruby
         else
           date_range = ''
           if range.size > 0
-            query_string += "&start-min=#{range[:start].xmlschema}&start-max=#{range[:end].xmlschema}"
+            query_string += "&start-min=#{CGI::escape(range[:start].xmlschema)}&start-max=#{CGI::escape(range[:end].xmlschema)}"
           end
         end
       end
