@@ -299,7 +299,7 @@ class Calendar
         ele.elements.each do |e|
           #puts "e = "+e.to_s if @service.debug
           #puts "previous element = "+e.previous_element.to_s if @service.debug
-          if e.name == 'role' and e.previous_element.name == 'scope' and e.previous_element.attributes['type'] == 'default'
+          if e.name == 'role' and e.previous_element and e.previous_element.name == 'scope' and e.previous_element.attributes['type'] == 'default'
             if e.attributes['value'].match('#read')
               @public = true
             else
